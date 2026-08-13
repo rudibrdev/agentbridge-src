@@ -165,9 +165,99 @@ icons/                 — icon16/48/128
 test/agent-client.mjs  — E2E agent client
 test/e2e.mjs           — orchestrator: server + Chrome + assertions
 test/RESULTS.md        — PASS/FAIL per scenario
+NEXT-STEPS.md          — onboarding + Web Store launch guide (for the human owner)
 ```
 
 Running the E2E tests: start the server, launch Chrome with the extension loaded,
 and run the `test/e2e.mjs` harness. It connects the agent client, exercises each
 action, covers the deny and timeout paths, and reports PASS/FAIL per scenario in
 `test/RESULTS.md`.
+
+## For AI agents working on this repo
+
+This section is written for other AI agents (coding agents, automation, contributors)
+who pick up this codebase. Read it before changing anything.
+
+### Ground rules
+
+1. **The approval gate is the product.** Never introduce any path that executes an
+   agent action without explicit human approval. No auto-execute, no silent bypass,
+   no "trusted agent" exceptions. The 60s timeout auto-deny is intentional.
+2. **Zero dependencies.** `bridge-server.mjs` runs on stock Node (20+, built-in
+   WebSocket). Do not add npm packages. Tests run with the built-in `node:test`
+   runner or plain scripts — no frameworks.
+3. **Loopback only.** The bridge must stay bound to `127.0.0.1`. Remote access is
+   a deliberate, separate feature (encrypted `wss://` + auth) that requires the
+   owner's explicit go-ahead. Do not widen the bind without it.
+4. **One pending request at a time** (`busy` auto-deny). The approval queue is
+   serialized in `background.js`.
+5. **Protocol compatibility.** Agents are third parties. Message shapes in
+   PROTOCOL.md are the contract — extend additive-only, never rename existing
+   fields without a major version bump.
+
+### How to run everything
+
+```bash
+# 1. Server (no install needed)
+node bridge-server.mjs          # ws://127.0.0.1:8788
+
+# 2. Server self-test (6/6)
+node test/server-self-test.mjs
+
+# 3. Demo agent (sends a readTab action; approve via popup)
+node test/agent-client.mjs
+
+# 4. Full E2E (needs Chrome for Testing + xvfb on headless boxes)
+E2E_SHOT_DIR=/tmp/ab-shots timeout 400 xvfb-run -a node test/e2e.mjs
+```
+
+### E2E harness mechanics (read before touching test/e2e.mjs)
+
+- The harness drives a **real Chrome** over CDP: launches Chrome with the extension
+  loaded, attaches to the service worker, opens the popup as a **tab** (via CDP
+  HTTP `PUT /json/new?url=chrome-extension://<id>/popup.html?e2e=<ts>` — never via
+  `chrome.windows.create` SW evals, which hang under xvfb).
+- **Fresh popup tab per decision.** A reused background tab gets frozen by Chrome;
+  its CDP evals queue until unfreeze and the 60s approval timeout wins. Always
+  close the previous popup tab and create a new one.
+- After attaching, send `Page.setWebLifecycleState({state:"active"})` (best-effort)
+  to unfreeze the backgrounded popup tab without activating it (`bringToFront`
+  would break `getActiveTab()`).
+- **Every CDP eval must be raced with `withTimeout`.** Nothing may hang the
+  harness. Screenshots are best-effort proof artifacts (5s cap) — never part of
+  the correctness path.
+- The service worker can freeze when idle under xvfb; socket writes flush on the
+  next 30s keepalive wake (observed ~20–26s delays). Wait up to 40s for results.
+- Select the extension service worker by **manifest name** (`AgentBridge`) —
+  Chrome ships a built-in "Contextual Tasks" component extension; never
+  first-match on extension id.
+- Kill orphans by port (`fuser -k <port>/tcp`), never `pkill -f` patterns that
+  match the harness's own cmdline. `zip` is absent in the sandbox — build the
+  package with `python3 -m zipfile -c dist/agentbridge.zip <files>`.
+
+### Extension architecture notes
+
+- `background.js` is the service worker: it is the WS **client** to the bridge
+  (MV3 SWs cannot be WS servers), owns the approval queue, and executes approved
+  actions via `chrome.tabs`, `navigator.clipboard` (with `chrome.scripting`
+  fallback), and content-script messaging.
+- `e2eMode` storage flag (`chrome.storage.local.get('e2eMode')`) skips
+  `chrome.action.openPopup()` so the harness can drive the popup as a tab.
+  Production-safe no-op; leave the flag unset in real use.
+- `host_permissions: ["<all_urls>"]` is required because agents act without a user
+  gesture. The approval gate is the control that makes this safe.
+
+### What a good change looks like
+
+- Additive protocol changes only (new action types are fine).
+- Tests: extend `test/e2e.mjs` with the new scenario and keep 9/9 (or more) green;
+  keep `test/RESULTS.md` in sync.
+- Document new actions in README's action table + PROTOCOL.md.
+- Verify the store package: rebuild `dist/agentbridge.zip` and confirm the file
+  list matches the manifest (icons, popup, background, content, README).
+
+### Definition of done
+
+Server self-test 6/6 **and** full E2E green (exit 0) **and** evidence updated in
+`businesses/yardwork/work/t4-build/evidence/` when working from the workspace copy.
+Never claim green without running the suite.
