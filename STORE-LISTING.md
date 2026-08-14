@@ -98,8 +98,7 @@ It does nothing else — no ads, no accounts, no tracking, no other features.
 - **Approval count** is stored in local browser storage (`chrome.storage.local`),
   on your device only.
 
-## Privacy policy URL — TODO ⚠️
+## Privacy policy URL ✅
 
-No privacy-policy URL is set yet. The Chrome Web Store requires one at submission
-time. **Ves must host a privacy policy** (e.g., a page on https://yardwork.dev)
-before the listing can be submitted. Flagged as a TODO — do not invent a URL.
+**https://rudibrdev.github.io/agentbridge-site/privacy.html** — live, hosted on
+GitHub Pages. Use this in the Chrome Web Store listing's Privacy Policy field.

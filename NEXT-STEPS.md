@@ -1,13 +1,13 @@
 # AgentBridge — What To Do Next
 
-**Repo:** https://github.com/rudibrbot-cmyk/agentbridge (private, you're invited as collaborator)
+**Repo:** https://github.com/rudibrdev/agentbridge (private, you're invited as collaborator)
 **Status:** Product finished, E2E-tested 9/9 in real Chrome. Not yet published to the Chrome Web Store.
 
 ---
 
 ## Step 0 — Accept the GitHub invite (1 min)
 
-You'll get an email from GitHub: "rudibrbot-cmyk invited you to agentbridge". Accept it, then you have full access to the code.
+You'll get an email from GitHub: "rudibrdev invited you to agentbridge". Accept it, then you have full access to the code.
 
 ---
 
@@ -17,7 +17,7 @@ This is the fastest "is this real?" test — no store, no fee, no publishing.
 
 1. **Get the code:**
    ```bash
-   git clone https://github.com/rudibrbot-cmyk/agentbridge.git
+   git clone https://github.com/rudibrdev/agentbridge.git
    cd agentbridge
    ```
 
