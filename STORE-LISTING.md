@@ -100,5 +100,5 @@ It does nothing else — no ads, no accounts, no tracking, no other features.
 
 ## Privacy policy URL ✅
 
-**https://rudibrdev.github.io/agentbridge-site/privacy.html** — live, hosted on
+**https://rudibrdev.github.io/agentbridge/privacy.html** — live, hosted on
 GitHub Pages. Use this in the Chrome Web Store listing's Privacy Policy field.

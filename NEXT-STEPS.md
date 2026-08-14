@@ -1,6 +1,6 @@
 # AgentBridge — What To Do Next
 
-**Repo:** https://github.com/rudibrdev/agentbridge (private, you're invited as collaborator)
+**Repo:** https://github.com/rudibrdev/agentbridge-src (private, you're invited as collaborator)
 **Status:** Product finished, E2E-tested 9/9 in real Chrome. Not yet published to the Chrome Web Store.
 
 ---
@@ -17,7 +17,7 @@ This is the fastest "is this real?" test — no store, no fee, no publishing.
 
 1. **Get the code:**
    ```bash
-   git clone https://github.com/rudibrdev/agentbridge.git
+   git clone https://github.com/rudibrdev/agentbridge-src.git
    cd agentbridge
    ```
 
