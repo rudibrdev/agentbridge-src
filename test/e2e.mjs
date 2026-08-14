@@ -33,6 +33,7 @@ const EXT_DIR = path.join(__dirname, "..");
 const SERVER = path.join(__dirname, "..", "bridge-server.mjs");
 const SERVER_PORT = 8788;
 const BRIDGE_URL = `ws://127.0.0.1:${SERVER_PORT}`;
+const BRIDGE_TOKEN = "e2e-token"; // deterministic; set on server + extension
 const CDP_PORT = 9223;
 const TEST_PAGE_PORT = 8799;
 const TEST_PAGE_URL = `http://127.0.0.1:${TEST_PAGE_PORT}/`;
@@ -320,8 +321,11 @@ async function main() {
     testServer.listen(TEST_PAGE_PORT, "127.0.0.1", resolve);
   });
 
-  // ---- 1. Start the bridge server ----
-  const server = spawn(process.execPath, [SERVER], { stdio: ["ignore", "pipe", "pipe"] });
+  // ---- 1. Start the bridge server (with shared-secret token) ----
+  const server = spawn(process.execPath, [SERVER], {
+    env: { ...process.env, AGENTBRIDGE_TOKEN: BRIDGE_TOKEN },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
   let serverOut = "";
   const serverReady = new Promise((resolve, reject) => {
     const t = setTimeout(() => reject(new Error("server start timeout")), 5000);
@@ -382,9 +386,21 @@ async function main() {
     await swCdp.send("Runtime.enable");
     record("extension SW attached", true, swTarget.url);
 
+    // Configure the extension BEFORE it connects to the bridge: shared-secret
+    // token (the bridge rejects unauthenticated clients) + E2E test mode
+    // (tells the SW not to open its action popup — it steals focus). The SW's
+    // storage.onChanged listener triggers connect() on the token write.
+    await withTimeout(
+      swCdp.evaluate(`chrome.storage.local.set({e2eMode: true, bridgeToken: ${JSON.stringify(BRIDGE_TOKEN)}})`),
+      3000,
+      "set e2eMode+token"
+    ).catch((e) => {
+      console.log(`[diag] e2eMode/token set failed: ${e.message}`);
+    });
+
     // ---- 4. Connect agent client + WAIT for extension hello on the server ----
     agentWs = await wsConnect(BRIDGE_URL);
-    agentWs.send(JSON.stringify({ type: "hello", role: "agent", name: "e2e-agent" }));
+    agentWs.send(JSON.stringify({ type: "hello", role: "agent", name: "e2e-agent", token: BRIDGE_TOKEN }));
 
     // The extension SW connects asynchronously after Chrome boots. Wait until the
     // server has registered it (visible in the server log) before sending actions.
@@ -437,6 +453,8 @@ async function main() {
     // E2E test mode: tell the SW not to open its action popup (it steals
     // focus and closes on focus loss — both break the harness). Gated by a
     // storage flag the harness sets; production users never see it.
+    // (Already set above together with bridgeToken — this is a belt-and-
+    // suspenders re-assert in case the earlier write raced SW startup.)
     await withTimeout(
       swCdp.evaluate(`chrome.storage.local.set({e2eMode: true})`),
       3000,
@@ -602,7 +620,7 @@ async function main() {
 
     // ---- 9. Write RESULTS.md ----
     const lines = [
-      "# AgentBridge E2E Results — 2026-08-13",
+      "# AgentBridge E2E Results — 2026-08-14",
       "",
       `Chrome: ${CHROME}`,
       `Extension: ${EXT_DIR}`,
@@ -641,7 +659,7 @@ main().catch((e) => {
   console.log(`E2E FAIL: ${e.message}`);
   fs.writeFileSync(
     RESULTS_PATH,
-    ["# AgentBridge E2E Results — 2026-08-13", "", "**HARNESS FAILED**", "", `\`\`\`\n${e.message}\n\`\`\``, ""].join("\n")
+    ["# AgentBridge E2E Results — 2026-08-14", "", "**HARNESS FAILED**", "", `\`\`\`\n${e.message}\n\`\`\``, ""].join("\n")
   );
   process.exit(1);
 });

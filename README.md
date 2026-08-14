@@ -2,7 +2,7 @@
 
 Free local bridge: AI agents attach to your Chrome browser and read the active tab,
 read/write the clipboard, and inject text — with your explicit approval on every action.
-Version 0.1.0. Made by YardWork (https://yardwork.dev).
+Version 0.2.0. Made by YardWork (https://yardwork.dev).
 
 ## What it is
 
@@ -43,9 +43,12 @@ Every agent action requires an explicit human approval in the extension.
 2. **Start the bridge server**
    - Requires Node.js 20 or newer. No dependencies to install.
    - Run: `node bridge-server.mjs`
-   - You should see: `listening on ws://127.0.0.1:8788`.
-3. **Confirm the connection** — open the AgentBridge popup. It shows the bridge
-   status and any pending approval requests.
+   - It prints `AgentBridge token: <hex>` — **copy this token**.
+3. **Paste the token into the extension popup** (one-time) — open the AgentBridge
+   popup, paste the token, click **Save token**. The extension reconnects and shows
+   the bridge status. Without a token the extension stays disconnected on purpose.
+4. **Confirm the connection** — the popup shows the bridge status and any pending
+   approval requests.
 
 ## Connect an agent
 
@@ -57,9 +60,10 @@ Minimal agent client (Node 22+, built-in WebSocket):
 
 ```js
 const ws = new WebSocket("ws://127.0.0.1:8788");
+const TOKEN = "paste the token printed by bridge-server.mjs";
 
 ws.onopen = () => {
-  ws.send(JSON.stringify({ type: "hello", role: "agent", name: "my-agent" }));
+  ws.send(JSON.stringify({ type: "hello", role: "agent", name: "my-agent", token: TOKEN }));
   ws.send(JSON.stringify({ type: "action", id: "req-123", action: "readTab", params: {} }));
 };
 
@@ -68,22 +72,27 @@ ws.onmessage = (e) => {
 };
 ```
 
+> **Token required.** Every client (agent AND extension) must present the
+> shared-secret token in its `hello`. Start the server with
+> `AGENTBRIDGE_TOKEN=my-token node bridge-server.mjs` to fix the token for
+> automation; otherwise the server generates a fresh one each start and prints it.
+
 ### Message protocol (JSON text frames)
 
-1. **Hello** — on connect:
+1. **Hello** — on connect (token required):
 
    Agent → Server:
    ```json
-   {"type": "hello", "role": "agent", "name": "my-agent"}
+   {"type": "hello", "role": "agent", "name": "my-agent", "token": "<shared-secret>"}
    ```
    Extension → Server:
    ```json
-   {"type": "hello", "role": "extension", "name": "AgentBridge"}
+   {"type": "hello", "role": "extension", "name": "AgentBridge", "token": "<shared-secret>"}
    ```
 
-2. **Action request** (agent → server → extension, forwarded verbatim):
+2. **Action request** (agent → server → extension; server injects `from` = agent name):
    ```json
-   {"type": "action", "id": "req-123", "action": "readTab", "params": {}}
+   {"type": "action", "id": "req-123", "action": "readTab", "params": {}, "from": "my-agent"}
    ```
 
 3. **Approval result** (extension → server → agent, forwarded verbatim):
@@ -133,8 +142,15 @@ Errors return `{"ok": false, "error": "<message>"}`:
 
 - **Loopback only.** The bridge binds to `127.0.0.1:8788`. Nothing is exposed to the
   network or the internet.
+- **Shared-secret token auth.** Every connection must present the token in its
+  `hello`; the server rejects and closes otherwise. Web pages (browser Origins)
+  cannot even complete the WebSocket handshake — only local processes without an
+  Origin header or the extension itself may connect.
+- **Requester identity.** The approval prompt shows exactly which agent is asking.
 - **Approval gate in code.** The extension never executes an action without an
   explicit human approval. There is no auto-execution path.
+- **Size caps + redacted logs.** Frames are capped at 1 MB, `params.text` at 256 KB,
+  and the extension never logs clipboard/body content.
 - **Why `host_permissions: ["<all_urls>"]`?** Agents act without a user gesture — they
   do not click or type themselves. The extension therefore needs broad host access to
   query the active tab, read/write the clipboard, and inject text into any page the
@@ -145,11 +161,14 @@ Errors return `{"ok": false, "error": "<message>"}`:
 - **Bridge not running** — start it with `node bridge-server.mjs`. Expect
   `listening on ws://127.0.0.1:8788`. The server logs JSON lines
   (`connect`, `disconnect`, `action`, `result`, `approval`, `deny`) to stdout.
-- **Extension not connecting** — reload the extension in `chrome://extensions`, then
-  reopen the popup. The service worker auto-reconnects with backoff
-  (1s, 5s, 15s, max 30s) and a 30s `chrome.alarms` tick keeps it alive.
-- **Agent gets `no extension connected`** — the extension is not attached. Check the
-  server log for an extension `hello`.
+- **Extension not connecting** — the extension stays disconnected until you paste
+  the bridge token in the popup (one-time). After saving, it reconnects immediately.
+  Reload the extension in `chrome://extensions` if it still shows disconnected. The
+  service worker auto-reconnects with backoff (1s, 5s, 15s, max 30s) and a 30s
+  `chrome.alarms` tick keeps it alive.
+- **Agent gets `invalid token`** — the agent's `hello` token does not match the
+  server's. Restart the server with `AGENTBRIDGE_TOKEN=<token>` set (or copy the
+  freshly printed token into the extension popup again).
 
 ## Development
 

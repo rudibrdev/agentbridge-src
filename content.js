@@ -4,8 +4,10 @@
  * This script NEVER opens WebSocket connections — the SW owns the bridge.
  */
 
-chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (!msg || typeof msg.type !== "string") return;
+  // Only respond to messages from OUR OWN extension (SW/popup).
+  if (!sender || sender.id !== chrome.runtime.id) return;
 
   switch (msg.type) {
     case "agentbridge:readClipboard": {

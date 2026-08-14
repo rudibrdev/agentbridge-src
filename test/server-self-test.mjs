@@ -20,6 +20,7 @@ import path from "node:path";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SERVER = path.join(__dirname, "..", "bridge-server.mjs");
 const URL = "ws://127.0.0.1:8788";
+const TOKEN = "self-test-token"; // deterministic for the harness
 
 let passed = 0;
 let failed = 0;
@@ -33,8 +34,11 @@ function check(name, cond, extra = "") {
   }
 }
 
-// Start the server, wait for "listening" on stdout.
-const server = spawn(process.execPath, [SERVER], { stdio: ["ignore", "pipe", "pipe"] });
+// Start the server with the token, wait for "listening" on stdout.
+const server = spawn(process.execPath, [SERVER], {
+  env: { ...process.env, AGENTBRIDGE_TOKEN: TOKEN },
+  stdio: ["ignore", "pipe", "pipe"],
+});
 let serverOutput = "";
 const ready = new Promise((resolve, reject) => {
   const t = setTimeout(() => reject(new Error("server did not start in 5s")), 5000);
@@ -83,9 +87,21 @@ try {
   await ready;
   check("server listening", serverOutput.includes(`ws://127.0.0.1:8788`), `(${serverOutput.trim().split("\n").pop()})`);
 
+  // 0. Wrong token -> rejected and closed.
+  const bad = await connect();
+  bad.send(JSON.stringify({ type: "hello", role: "agent", name: "bad", token: "wrong-token" }));
+  const badMsg = await nextMessage(bad);
+  check("wrong token rejected", badMsg.type === "error" && badMsg.error === "invalid token", `(${JSON.stringify(badMsg)})`);
+
+  // 0b. Missing token -> rejected and closed.
+  const noTok = await connect();
+  noTok.send(JSON.stringify({ type: "hello", role: "agent", name: "notok" }));
+  const noTokMsg = await nextMessage(noTok);
+  check("missing token rejected", noTokMsg.type === "error" && noTokMsg.error === "invalid token", `(${JSON.stringify(noTokMsg)})`);
+
   // 6. No extension attached -> action errors immediately.
   const loneAgent = await connect();
-  loneAgent.send(JSON.stringify({ type: "hello", role: "agent", name: "lone" }));
+  loneAgent.send(JSON.stringify({ type: "hello", role: "agent", name: "lone", token: TOKEN }));
   const errP = nextMessage(loneAgent);
   loneAgent.send(JSON.stringify({ type: "action", id: "req-0", action: "readTab", params: {} }));
   const errMsg = await errP;
@@ -94,20 +110,20 @@ try {
 
   // 2+3. Agent + extension attach.
   const agent = await connect();
-  agent.send(JSON.stringify({ type: "hello", role: "agent", name: "self-test-agent" }));
+  agent.send(JSON.stringify({ type: "hello", role: "agent", name: "self-test-agent", token: TOKEN }));
   await sleep(100);
 
   const ext = await connect();
-  ext.send(JSON.stringify({ type: "hello", role: "extension", name: "AgentBridge" }));
+  ext.send(JSON.stringify({ type: "hello", role: "extension", name: "AgentBridge", token: TOKEN }));
   await sleep(100);
 
-  // 4. Action routed agent -> extension verbatim.
+  // 4. Action routed agent -> extension verbatim (with requester identity).
   const extP = nextMessage(ext);
   agent.send(JSON.stringify({ type: "action", id: "req-1", action: "readTab", params: {} }));
   const fwd = await extP;
   check(
-    "action forwarded verbatim",
-    fwd.type === "action" && fwd.id === "req-1" && fwd.action === "readTab" && JSON.stringify(fwd.params) === "{}",
+    "action forwarded verbatim with from",
+    fwd.type === "action" && fwd.id === "req-1" && fwd.action === "readTab" && fwd.from === "self-test-agent" && JSON.stringify(fwd.params) === "{}",
     `(${JSON.stringify(fwd)})`
   );
 

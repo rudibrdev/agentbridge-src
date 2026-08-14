@@ -1,13 +1,13 @@
 # AgentBridge — What To Do Next
 
 **Repo:** https://github.com/rudibrdev/agentbridge-src (private, you're invited as collaborator)
-**Status:** Product finished, E2E-tested 9/9 in real Chrome. Not yet published to the Chrome Web Store.
+**Status:** Security-hardened (v0.2.0), E2E-tested 9/9 in real Chrome. Not yet published to the Chrome Web Store.
 
 ---
 
 ## Step 0 — Accept the GitHub invite (1 min)
 
-You'll get an email from GitHub: "rudibrdev invited you to agentbridge". Accept it, then you have full access to the code.
+You'll get an email from GitHub: "rudibrdev invited you to agentbridge-src". Accept it, then you have full access to the code.
 
 ---
 
@@ -18,14 +18,15 @@ This is the fastest "is this real?" test — no store, no fee, no publishing.
 1. **Get the code:**
    ```bash
    git clone https://github.com/rudibrdev/agentbridge-src.git
-   cd agentbridge
+   cd agentbridge-src
    ```
 
 2. **Start the bridge server** (needs Node 22+):
    ```bash
    node bridge-server.mjs
    ```
-   You should see: `bridge listening on ws://127.0.0.1:8788`
+   You should see: `bridge listening on ws://127.0.0.1:8788` and
+   `AgentBridge token: <hex>`. **Copy the token** — you'll paste it into the popup next.
 
 3. **Load the extension into Chrome:**
    - Open `chrome://extensions`
@@ -33,11 +34,12 @@ This is the fastest "is this real?" test — no store, no fee, no publishing.
    - Click **Load unpacked**
    - Select the `agentbridge` folder (the one with `manifest.json`)
    - You should see "AgentBridge — Connect AI Agents to Your Browser"
-   - The popup icon appears next to the address bar. Click it — it should show **Bridge: connected**
+   - The popup icon appears next to the address bar. Click it — paste the **token**
+     into the "Bridge token" field and click **Save token**. It should now show **Bridge: connected**
 
 4. **Send a test action** (second terminal):
    ```bash
-   node test/agent-client.mjs
+   AGENTBRIDGE_TOKEN=<token> node test/agent-client.mjs
    ```
    This connects a demo agent and sends a `readTab` request.
 
@@ -66,9 +68,9 @@ The store requires a public URL where the privacy policy lives. The extension it
 ## Step 3 — Publish (after Step 2 decisions)
 
 1. Create a developer account at https://chrome.google.com/webstore/devconsole (pay $5)
-2. "New item" → upload `dist/agentbridge.zip` (already built and verified)
+2. "New item" → upload `dist/agentbridge.zip` (v0.2.0 — rebuilt after the security pass)
 3. Fill in the listing — `STORE-LISTING.md` in the repo has ready-to-paste text (name, description, screenshots section)
-4. Add the privacy-policy URL (Step 2.2)
+4. **Website:** `https://yardwork.dev` · **Privacy policy:** `https://rudibrdev.github.io/agentbridge/privacy.html`
 5. Submit for review — typically 1–3 days
 
 ---

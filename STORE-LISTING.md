@@ -98,7 +98,20 @@ It does nothing else — no ads, no accounts, no tracking, no other features.
 - **Approval count** is stored in local browser storage (`chrome.storage.local`),
   on your device only.
 
-## Privacy policy URL ✅
+## Privacy policy URL — DONE ✅
 
-**https://rudibrdev.github.io/agentbridge/privacy.html** — live, hosted on
-GitHub Pages. Use this in the Chrome Web Store listing's Privacy Policy field.
+Privacy policy is live at:
+**https://rudibrdev.github.io/agentbridge/privacy.html**
+
+Add this URL in the store listing's "Privacy policy" field at submission time.
+
+## Security (v0.2.0 — auth added)
+
+- **Shared-secret token auth.** Every connection (agent AND extension) must present
+  the bridge token in its `hello`; the server rejects and closes otherwise.
+  The extension stores the token locally; agents pass it via env/arg.
+- **Origin allowlist.** Web pages cannot complete the WebSocket handshake — only
+  local processes (no Origin) or the extension itself (`chrome-extension://`).
+- **Requester identity.** The approval prompt shows which agent is asking.
+- **Size caps + redacted logs.** 1 MB frame cap, 256 KB `params.text` cap, and the
+  extension never logs clipboard/body content.

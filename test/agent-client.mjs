@@ -16,6 +16,16 @@ import path from "node:path";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const BRIDGE_URL = "ws://127.0.0.1:8788";
+// Token: required by the bridge. Pass via env AGENTBRIDGE_TOKEN or --token.
+const argToken = (() => {
+  const i = process.argv.indexOf("--token");
+  return i >= 0 ? process.argv[i + 1] : "";
+})();
+const TOKEN = process.env.AGENTBRIDGE_TOKEN || argToken;
+if (!TOKEN) {
+  console.error("missing token: pass AGENTBRIDGE_TOKEN env or --token <token>");
+  process.exit(2);
+}
 
 const action = process.argv[2] || "readTab";
 const param = process.argv[3] || "";
@@ -27,7 +37,7 @@ const ws = new WebSocket(BRIDGE_URL);
 const id = `cli-${Date.now()}`;
 
 ws.addEventListener("open", () => {
-  ws.send(JSON.stringify({ type: "hello", role: "agent", name: "cli-agent" }));
+  ws.send(JSON.stringify({ type: "hello", role: "agent", name: "cli-agent", token: TOKEN }));
   setTimeout(() => {
     console.log(`> sending ${action} (id=${id})`);
     ws.send(JSON.stringify({ type: "action", id, action, params }));

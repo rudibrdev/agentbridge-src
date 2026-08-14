@@ -23,11 +23,22 @@ function render(state) {
     $("pendingWrap").hidden = false;
     $("noPending").hidden = true;
     $("pendingAction").textContent = `Action: ${pending.action}`;
+    $("pendingFrom").textContent = `Requested by agent: ${pending.from || "unknown"}`;
     $("pendingDetail").textContent = pending.detail || "";
   } else {
     $("pendingWrap").hidden = true;
     $("noPending").hidden = false;
   }
+
+  // Token status: show a hint if no token is configured yet.
+  const tokenInput = $("tokenInput");
+  const tokenSave = $("tokenSaveBtn");
+  if (!state.tokenSet) {
+    tokenSave.textContent = "Save token";
+  } else {
+    tokenSave.textContent = "Update token";
+  }
+  tokenInput.placeholder = state.tokenSet ? "token saved — paste new one to rotate" : "paste token from bridge server";
 }
 
 function refresh() {
@@ -42,6 +53,15 @@ $("approveBtn").addEventListener("click", () => {
 });
 $("denyBtn").addEventListener("click", () => {
   chrome.runtime.sendMessage({ type: "agentbridge:deny" }, () => refresh());
+});
+
+$("tokenSaveBtn").addEventListener("click", () => {
+  const token = $("tokenInput").value.trim();
+  if (!token) return;
+  chrome.runtime.sendMessage({ type: "agentbridge:setToken", token }, () => {
+    $("tokenInput").value = "";
+    refresh();
+  });
 });
 
 // Live-update when the SW broadcasts a state change.

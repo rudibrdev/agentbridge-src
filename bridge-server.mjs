@@ -15,6 +15,22 @@ const HOST = "127.0.0.1";
 const MAGIC = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 const PING_INTERVAL_MS = 30_000;
 const PONG_TIMEOUT_MS = 60_000; // 2 missed pongs -> drop
+const MAX_FRAME_BYTES = 1_048_576; // 1 MB per message — frame-size DoS guard
+const MAX_BUFFER_BYTES = 4 * MAX_FRAME_BYTES; // 4 MB in-flight buffer cap
+
+// Shared-secret auth: every client (agent OR extension) must present this
+// token in its hello. Generated fresh each start; override with
+// AGENTBRIDGE_TOKEN for test harnesses / deterministic setups.
+const TOKEN = process.env.AGENTBRIDGE_TOKEN || crypto.randomBytes(32).toString("hex");
+
+/** Timing-safe token comparison. */
+function tokenMatches(candidate) {
+  if (typeof candidate !== "string") return false;
+  const a = Buffer.from(candidate);
+  const b = Buffer.from(TOKEN);
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
+}
 
 function log(event, detail = {}) {
   const line = { ts: Date.now(), event, ...detail };
@@ -96,6 +112,11 @@ class WsConnection {
       len = Number(big);
       offset = 10;
     }
+    if (len > MAX_FRAME_BYTES) {
+      // Declared payload larger than the cap — reject, never buffer it.
+      this._close();
+      return null;
+    }
     const maskLen = masked ? 4 : 0;
     if (buf.length < offset + maskLen + len) return null;
     const mask = masked ? buf.subarray(offset, offset + 4) : null;
@@ -160,6 +181,11 @@ function route(msg, conn) {
 
   switch (msg.type) {
     case "hello": {
+      if (!tokenMatches(msg.token)) {
+        conn.sendText({ type: "error", error: "invalid token" });
+        conn._close();
+        return;
+      }
       conn.role = msg.role;
       conn.name = msg.name || "unknown";
       if (msg.role === "extension") {
@@ -183,8 +209,15 @@ function route(msg, conn) {
         break;
       }
       pendingByAgent.set(String(msg.id), conn);
-      log("action", { id: msg.id, action: msg.action });
-      extension.sendText({ type: "action", id: msg.id, action: msg.action, params: msg.params || {} });
+      log("action", { id: msg.id, action: msg.action, from: conn.name });
+      // Include the requesting agent's name so the extension can show WHO asks.
+      extension.sendText({
+        type: "action",
+        id: msg.id,
+        action: msg.action,
+        params: msg.params || {},
+        from: conn.name || "unknown",
+      });
       break;
     }
 
@@ -215,6 +248,16 @@ function route(msg, conn) {
 }
 
 server.on("upgrade", (req, socket) => {
+  // Origin allowlist: web pages must NOT reach the bridge (drive-by WS
+  // attacks). Allowed: no Origin header (Node/CLI agents) or
+  // chrome-extension:// (the extension's own service worker). Everything
+  // else (browser page origins) is rejected before the handshake.
+  const origin = req.headers["origin"];
+  if (origin && !origin.startsWith("chrome-extension://")) {
+    socket.write("HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n");
+    socket.destroy();
+    return;
+  }
   const key = req.headers["sec-websocket-key"];
   const proto = req.headers["sec-websocket-protocol"];
   if (!key) {
@@ -241,6 +284,10 @@ server.on("upgrade", (req, socket) => {
   conn.onClose = () => {
     if (extension === conn) extension = null;
     if (conn.role === "agent" && conn.name) agents.delete(conn.name);
+    // Drop this agent's pending requests — no zombie results later.
+    for (const [id, c] of pendingByAgent) {
+      if (c === conn) pendingByAgent.delete(id);
+    }
     log("disconnect", { role: conn.role || "unknown" });
   };
 });
@@ -273,4 +320,5 @@ process.on("SIGTERM", shutdown);
 
 server.listen(PORT, HOST, () => {
   log("listening", { url: `ws://${HOST}:${PORT}` });
+  console.log(`AgentBridge token: ${TOKEN}`);
 });

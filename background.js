@@ -12,13 +12,15 @@ const APPROVAL_TIMEOUT_MS = 60_000; // 60s -> auto-deny
 const RECONNECT_BACKOFFS = [1000, 5000, 15000, 30000]; // then stays at 30s max
 const KEEPALIVE_ALARM = "agentbridge-keepalive";
 const APPROVALS_KEY = "approvals";
+const TOKEN_KEY = "bridgeToken";
+const MAX_TEXT_BYTES = 256 * 1024; // cap on writeClipboard/inject payloads
 
 /** @type {WebSocket|null} */
 let ws = null;
 let reconnectAttempt = 0;
 let reconnectTimer = null;
 
-/** @type {{id: string, action: string, params: object}|null} */
+/** @type {{id: string, action: string, params: object, from: string}|null} */
 let pendingApproval = null;
 let approvalTimeoutTimer = null;
 
@@ -39,9 +41,18 @@ function broadcastStatus(state) {
 
 /**
  * Connect (or reconnect) to the bridge server.
+ * Requires a configured token — the bridge rejects unauthenticated clients.
  */
-function connect() {
+async function connect() {
   if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
+
+  const { [TOKEN_KEY]: token } = await chrome.storage.local.get(TOKEN_KEY);
+  if (!token) {
+    // No token configured yet — tell the popup, retry later (keepalive
+    // alarm + storage.onChanged will re-trigger connect()).
+    updatePopup();
+    return;
+  }
 
   try {
     ws = new WebSocket(BRIDGE_URL);
@@ -52,7 +63,7 @@ function connect() {
 
   ws.addEventListener("open", () => {
     reconnectAttempt = 0;
-    sendToBridge({ type: "hello", role: "extension", name: "AgentBridge" });
+    sendToBridge({ type: "hello", role: "extension", name: "AgentBridge", token });
     broadcastStatus("connected");
     updatePopup();
   });
@@ -94,7 +105,8 @@ function scheduleReconnect() {
  * @param {object} msg
  */
 async function handleBridgeMessage(msg) {
-  console.log("[trace] bridge msg:", JSON.stringify(msg));
+  // Log metadata only — NEVER message bodies (clipboard/inject text).
+  console.log("[trace] bridge msg:", msg?.type || "?", msg?.id || "", msg?.action || "", msg?.from || "");
   if (msg.type === "action") {
     await handleActionRequest(msg);
   }
@@ -112,8 +124,13 @@ async function handleActionRequest(req) {
     return;
   }
 
-  pendingApproval = req;
-  console.log("[trace] pending set:", req.id, req.action);
+  // Cap text payloads before they go anywhere near storage/logs/UI.
+  const params = { ...(req.params || {}) };
+  if (typeof params.text === "string" && params.text.length > MAX_TEXT_BYTES) {
+    params.text = params.text.slice(0, MAX_TEXT_BYTES);
+  }
+  pendingApproval = { id: req.id, action: req.action, params, from: req.from || "unknown" };
+  console.log("[trace] pending set:", req.id, req.action, "from", pendingApproval.from);
   startApprovalTimeout(req.id);
   showApprovalNotification(req);
   updatePopup();
@@ -155,7 +172,7 @@ function showApprovalNotification(req) {
       type: "basic",
       iconUrl: "icons/icon128.png",
       title: `AgentBridge: ${actionLabel}?`,
-      message: detail,
+      message: `Agent "${req.from || "unknown"}" requests: ${detail}`,
       buttons: [{ title: "✅ Approve" }, { title: "🚫 Deny" }],
       priority: 2,
       requireInteraction: true,
@@ -271,7 +288,8 @@ async function executeAction(req) {
 
 /** Send a result back to the bridge (which routes it to the agent). */
 function sendResult(id, ok, dataOrError) {
-  console.log("[trace] sendResult:", id, ok, JSON.stringify(dataOrError));
+  // Log metadata only; data may contain clipboard text — never log it.
+  console.log("[trace] sendResult:", id, ok, ok ? "(data redacted)" : dataOrError);
   if (ok) {
     sendToBridge({ type: "result", id, ok: true, data: dataOrError });
   } else {
@@ -398,11 +416,17 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
   switch (msg.type) {
     case "agentbridge:getState":
-      chrome.storage.local.get(APPROVALS_KEY).then(({ [APPROVALS_KEY]: approvals = 0 }) => {
+      chrome.storage.local.get([APPROVALS_KEY, TOKEN_KEY]).then(({ [APPROVALS_KEY]: approvals = 0, [TOKEN_KEY]: token = "" }) => {
         sendResponse({
           connected: !!(ws && ws.readyState === WebSocket.OPEN),
+          tokenSet: !!token,
           pending: pendingApproval
-            ? { id: pendingApproval.id, action: pendingApproval.action, detail: describeAction(pendingApproval) }
+            ? {
+                id: pendingApproval.id,
+                action: pendingApproval.action,
+                from: pendingApproval.from,
+                detail: describeAction(pendingApproval),
+              }
             : null,
           approvals: approvals || 0,
         });
@@ -416,8 +440,33 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       denyPending();
       sendResponse({ ok: true });
       return false;
+    case "agentbridge:setToken":
+      chrome.storage.local.set({ [TOKEN_KEY]: String(msg.token || "") }).then(() => {
+        // Token changed — reconnect immediately (old socket, if any, was
+        // rejected by the bridge).
+        if (ws) {
+          try { ws.close(); } catch {}
+          ws = null;
+        }
+        reconnectAttempt = 0;
+        connect();
+        sendResponse({ ok: true });
+      });
+      return true; // async response
     default:
       return false;
+  }
+});
+
+/** Reconnect promptly when the user saves a new token in the popup. */
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "local" && changes[TOKEN_KEY]) {
+    if (ws) {
+      try { ws.close(); } catch {}
+      ws = null;
+    }
+    reconnectAttempt = 0;
+    connect();
   }
 });
 

@@ -11,6 +11,10 @@ The single source of truth. Every agent codes against THIS. Do not invent messag
 
 - `bridge-server.mjs` — zero-dependency Node WebSocket server on `127.0.0.1:8788`.
   Agents AND the extension connect to it. Server routes requests/responses by ID.
+  **Authentication:** every client must present the shared-secret token in its
+  `hello` (server prints it at startup; override with `AGENTBRIDGE_TOKEN` env).
+  Connections from browser web pages (Origin not `chrome-extension://`) are
+  rejected before the handshake.
 - Extension service worker connects OUT to the server as a WS client
   (MV3 service workers CAN be WS clients; they CANNOT be WS servers — hence the Node server).
 - Every agent action requires an explicit human approval in the extension.
@@ -19,13 +23,18 @@ The single source of truth. Every agent codes against THIS. Do not invent messag
 ## Message protocol (JSON text frames)
 
 ### 1. Hello (on connect)
+Every hello MUST include the shared-secret `token` (set `AGENTBRIDGE_TOKEN` for
+agents; paste the server's printed token into the extension popup once).
+Missing/invalid token → server replies `{"type":"error","error":"invalid token"}`
+and closes the connection.
+
 Agent → Server:
 ```json
-{"type": "hello", "role": "agent", "name": "my-agent"}
+{"type": "hello", "role": "agent", "name": "my-agent", "token": "<shared-secret>"}
 ```
 Extension → Server:
 ```json
-{"type": "hello", "role": "extension", "name": "AgentBridge"}
+{"type": "hello", "role": "extension", "name": "AgentBridge", "token": "<shared-secret>"}
 ```
 
 ### 2. Action request (agent → server → extension)
@@ -33,10 +42,11 @@ Agent → Server:
 ```json
 {"type": "action", "id": "req-123", "action": "readTab", "params": {}}
 ```
-Server → Extension (verbatim forward):
+Server → Extension (forward; server injects the requesting agent's name as `from`):
 ```json
-{"type": "action", "id": "req-123", "action": "readTab", "params": {}}
+{"type": "action", "id": "req-123", "action": "readTab", "params": {}, "from": "my-agent"}
 ```
+The extension shows `from` in the approval prompt — the human always sees WHO is asking.
 
 ### 3. Approval response (extension → server → agent)
 Extension → Server:
@@ -70,10 +80,28 @@ Error responses: `{"ok": false, "error": "denied by user"}` for denials,
 ## Approval gate rules (extension side — non-negotiable)
 
 1. Every action → show approval UI FIRST (notification with ✅/🚫 buttons + popup fallback).
+   The prompt must show the requesting agent's name (`from`).
 2. Execute ONLY after explicit approval.
 3. One pending request at a time. If a new action arrives while one is pending → auto-deny it with `{"ok": false, "error": "busy"}`.
 4. 60-second approval timeout → auto-deny `{"ok": false, "error": "timeout"}`.
 5. Track approvals count in chrome.storage.local (`approvals`).
+
+## Security invariants (v0.2.0 — non-negotiable)
+
+1. **Shared-secret token** — every `hello` (agent AND extension) must present the
+   token; the server rejects and closes otherwise. Server generates a fresh
+   256-bit token per start; override with `AGENTBRIDGE_TOKEN` env for automation.
+2. **Origin allowlist** — WebSocket upgrades with a browser-page Origin (anything
+   not absent / not `chrome-extension://`) are rejected with HTTP 403 before the
+   handshake. Websites cannot drive the bridge.
+3. **Requester identity** — the approval prompt always shows the requesting
+   agent's name; the server injects `from` into forwarded actions.
+4. **Size caps** — server rejects frames > 1 MB; extension caps `params.text`
+   at 256 KB.
+5. **Log redaction** — the extension never logs message bodies (clipboard text);
+   only ids/actions/requester names.
+6. **Content script sender check** — `content.js` only answers messages from the
+   extension's own runtime id.
 
 ## Extension service worker lifecycle (MV3)
 

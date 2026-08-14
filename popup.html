@@ -80,6 +80,31 @@
       color: #6b7280;
       font-size: 12px;
     }
+    .token {
+      margin-top: 12px;
+      border-top: 1px solid #e5e7eb;
+      padding-top: 10px;
+    }
+    .token label {
+      display: block;
+      font-size: 11px;
+      font-weight: 700;
+      color: #374151;
+      margin-bottom: 4px;
+    }
+    .token input {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 6px 8px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 12px;
+      font-family: monospace;
+      margin-bottom: 6px;
+    }
+    .token button {
+      padding: 6px 0;
+    }
   </style>
 </head>
 <body>
@@ -89,6 +114,7 @@
 
   <div id="pendingWrap" class="pending" hidden>
     <div class="action" id="pendingAction">—</div>
+    <div class="detail" id="pendingFrom">—</div>
     <div class="detail" id="pendingDetail">—</div>
     <div class="row">
       <button id="approveBtn">✅ Approve</button>
@@ -98,6 +124,13 @@
 
   <div id="noPending" class="meta">No pending requests.</div>
   <div class="meta" id="approvals">Approvals: 0</div>
+
+  <div class="token">
+    <label for="tokenInput">Bridge token</label>
+    <input id="tokenInput" type="password" placeholder="paste token from bridge server" autocomplete="off" />
+    <button id="tokenSaveBtn">Save token</button>
+    <div class="meta">Start the bridge server — it prints a token. Paste it here so only your agents can connect.</div>
+  </div>
 
   <script src="popup.js"></script>
 </body>
