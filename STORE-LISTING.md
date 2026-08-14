@@ -1,8 +1,20 @@
 # AgentBridge — Chrome Web Store Listing Copy
 
-- **Version:** 0.1.0
+- **Version:** 0.2.0
 - **Price:** Free
 - **Developer:** YardWork (Ves Ivanov) — https://yardwork.dev
+
+## Link fields (Ves decision, Aug 14 2026 — NOT hungry for links)
+
+- **Website field →** `https://rudibrdev.github.io/agentbridge/` (the product page —
+  what the user downloading the tool actually wants to land on).
+  NOT yardwork.dev — a tool listing jumping straight to a services homepage reads as
+  a backlink scheme and is a UX dead end. The dofollow path still reaches
+  yardwork.dev: CWS (Google, dofollow) → product page → in-content link to
+  yardwork.dev (About + footer, both dofollow, already verified live).
+- **Privacy policy field →** `https://rudibrdev.github.io/agentbridge/privacy.html`
+- **yardwork.dev appears naturally**: "Developer: YardWork" line in the description,
+  plus the product page's own content links. One or two good follow links is enough.
 
 ## Proposed name
 

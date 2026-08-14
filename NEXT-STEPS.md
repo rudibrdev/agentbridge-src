@@ -70,7 +70,7 @@ The store requires a public URL where the privacy policy lives. The extension it
 1. Create a developer account at https://chrome.google.com/webstore/devconsole (pay $5)
 2. "New item" → upload `dist/agentbridge.zip` (v0.2.0 — rebuilt after the security pass)
 3. Fill in the listing — `STORE-LISTING.md` in the repo has ready-to-paste text (name, description, screenshots section)
-4. **Website:** `https://yardwork.dev` · **Privacy policy:** `https://rudibrdev.github.io/agentbridge/privacy.html`
+4. **Website:** `https://rudibrdev.github.io/agentbridge/` (product page — NOT yardwork.dev; the tool's own site makes sense to users and reviewers, and the dofollow reaches yardwork.dev through the product page's in-content links) · **Privacy policy:** `https://rudibrdev.github.io/agentbridge/privacy.html`
 5. Submit for review — typically 1–3 days
 
 ---
