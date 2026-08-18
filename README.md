@@ -2,7 +2,7 @@
 
 Free local bridge: AI agents attach to your Chrome browser and read the active tab,
 read/write the clipboard, and inject text — with your explicit approval on every action.
-Version 0.2.0. Made by YardWork (https://yardwork.dev).
+Version 0.3.0. Made by YardWork (https://yardwork.dev).
 
 ## What it is
 

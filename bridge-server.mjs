@@ -38,8 +38,10 @@ function log(event, detail = {}) {
 }
 
 class WsConnection {
+  static nextId = 0;
   constructor(socket) {
     this.socket = socket;
+    this.connId = ++WsConnection.nextId;
     this.buffer = Buffer.alloc(0);
     this.role = null;
     this.name = null;
@@ -169,8 +171,10 @@ const server = http.createServer((req, res) => {
   res.end("AgentBridge bridge server — WebSocket upgrade only (ws://127.0.0.1:8788)");
 });
 
-/** @type {Map<string, WsConnection>} agents by hello name */
+/** @type {Map<number, WsConnection>} agents by UNIQUE connection id (not name) */
 const agents = new Map();
+/** @type {Map<number, string>} agent display names keyed by connection id */
+const agentNames = new Map();
 /** @type {WsConnection | null} the extension connection */
 let extension = null;
 /** @type {Map<string, WsConnection>} request id -> originating agent */
@@ -195,7 +199,8 @@ function route(msg, conn) {
         extension = conn;
         log("hello", { role: "extension", name: conn.name });
       } else if (msg.role === "agent") {
-        agents.set(conn.name || String(agents.size), conn);
+        agents.set(conn.connId, conn);
+        agentNames.set(conn.connId, conn.name);
         log("hello", { role: "agent", name: conn.name });
       }
       // Informational status broadcast to agent
@@ -208,7 +213,15 @@ function route(msg, conn) {
         conn.sendText({ type: "result", id: msg.id, ok: false, error: "no extension connected" });
         break;
       }
-      pendingByAgent.set(String(msg.id), conn);
+      // Collision-safe: never overwrite an in-flight request id for a DIFFERENT
+      // sender. If an id is already pending (from any agent), reject the new one
+      // instead of orphaning/misrouting the original (fixes duplicate-id bug).
+      const key = String(msg.id);
+      if (pendingByAgent.has(key)) {
+        conn.sendText({ type: "result", id: msg.id, ok: false, error: "busy" });
+        break;
+      }
+      pendingByAgent.set(key, conn);
       log("action", { id: msg.id, action: msg.action, from: conn.name });
       // Include the requesting agent's name so the extension can show WHO asks.
       extension.sendText({
@@ -283,7 +296,12 @@ server.on("upgrade", (req, socket) => {
   conn.onMessage = (msg) => route(msg, conn);
   conn.onClose = () => {
     if (extension === conn) extension = null;
-    if (conn.role === "agent" && conn.name) agents.delete(conn.name);
+    if (conn.role === "agent") {
+      // Delete by UNIQUE connection id — never by name, so a same-named agent
+      // that disconnects cannot drop a still-connected one (fixes name-collision).
+      agents.delete(conn.connId);
+      agentNames.delete(conn.connId);
+    }
     // Drop this agent's pending requests — no zombie results later.
     for (const [id, c] of pendingByAgent) {
       if (c === conn) pendingByAgent.delete(id);

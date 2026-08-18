@@ -1,36 +1,26 @@
-# AgentBridge — Chrome Web Store Listing Copy
+# AgentBridge — Chrome Web Store Listing
 
-- **Version:** 0.2.0
+- **Version:** 0.3.0
 - **Price:** Free
-- **Developer:** YardWork (Ves Ivanov) — https://yardwork.dev
+- **Developer:** YardWork — https://yardwork.dev
 
-## Link fields (Ves decision, Aug 14 2026 — NOT hungry for links)
+## Link fields
 
-- **Website field →** `https://rudibrdev.github.io/agentbridge/` (the product page —
-  what the user downloading the tool actually wants to land on).
-  NOT yardwork.dev — a tool listing jumping straight to a services homepage reads as
-  a backlink scheme and is a UX dead end. The dofollow path still reaches
-  yardwork.dev: CWS (Google, dofollow) → product page → in-content link to
-  yardwork.dev (About + footer, both dofollow, already verified live).
-- **Privacy policy field →** `https://rudibrdev.github.io/agentbridge/privacy.html`
-- **yardwork.dev appears naturally**: "Developer: YardWork" line in the description,
-  plus the product page's own content links. One or two good follow links is enough.
+- **Website:** `https://yardwork.dev`
+- **Privacy policy:** `https://yardwork.dev/agentbridge/privacy.html`
+  (Fallback: `https://rudibrdev.github.io/agentbridge/privacy.html`)
 
-## Proposed name
+## Name
 
 **AgentBridge — Connect AI Agents to Your Browser**
 
-(Matches the manifest `name` field.)
-
-## Short description (132 chars max — Chrome requirement)
+## Short description (132 chars max)
 
 ```
 Connect AI agents to your browser: read the tab, read/write the clipboard, inject text — every action needs your approval.
 ```
 
-**122 characters** — within the 132-char limit.
-
-## Detailed description (~1200 chars, benefit-led, plain English)
+## Detailed description
 
 ```
 AgentBridge is a free, local bridge between AI agents and your Chrome browser.
@@ -53,8 +43,6 @@ Private by design: all traffic stays on your computer, on the loopback interface
 Free, and compatible with any agent that speaks WebSocket — the message protocol is simple and documented.
 ```
 
-*(~1,180 characters — verify before submitting.)*
-
 ## Category
 
 **Productivity**
@@ -69,61 +57,32 @@ Free, and compatible with any agent that speaks WebSocket — the message protoc
 
 ## Screenshot plan (3–5 shots)
 
-1. **Extension popup — connected state:** shows the bridge status (connected) and the
-   approval count. Establishes what the extension looks like.
-2. **Approval notification:** Chrome notification with ✅ Approve / 🚫 Deny buttons for
-   an incoming agent request. This is the product's core moment — the human gate.
-3. **Agent client terminal:** a terminal running a small WebSocket client that sends a
-   `readTab` request and prints the approved result (title + URL). Shows the developer
-   / agent-facing side.
-4. *(optional)* **Clipboard roundtrip:** agent writes text, agent reads it back —
-   showing read/write clipboard working.
-5. *(optional)* **Inject demo:** agent text typed into a focused form field after
-   approval.
+1. **Extension popup — connected state:** bridge status (connected) + approval count.
+2. **Approval notification:** Chrome notification with Approve / Deny buttons for an incoming request — the human gate.
+3. **Agent client terminal:** a small WebSocket client sending a `readTab` request and printing the approved result.
+4. *(optional)* **Clipboard roundtrip:** agent writes text, reads it back.
+5. *(optional)* **Inject demo:** agent text typed into a focused form field after approval.
 
-## Single-purpose statement (Chrome requires it)
+## Single-purpose statement
 
-AgentBridge exists for one purpose: to let AI agents read your active tab and
-clipboard and inject text into a page, with your explicit approval on every action.
-It does nothing else — no ads, no accounts, no tracking, no other features.
+AgentBridge exists for one purpose: to let AI agents read your active tab and clipboard and inject text into a page, with your explicit approval on every action. It does nothing else — no ads, no accounts, no tracking, no other features.
 
 ## Permissions justification
 
 | Permission | Why it is needed |
 |---|---|
-| `activeTab` | Read the title/URL of the active tab when an approved `readTab` action runs. |
-| `clipboardRead` | Read clipboard text for the approved `readClipboard` action. |
-| `clipboardWrite` | Write text to the clipboard for the approved `writeClipboard` action. |
-| `scripting` | Inject text into the focused element on a page for the approved `inject` action. |
+| `activeTab` | Read the active tab's title/URL for an approved `readTab`. |
+| `clipboardRead` | Read clipboard text for the approved `readClipboard`. |
+| `clipboardWrite` | Write text to the clipboard for the approved `writeClipboard`. |
+| `scripting` | Inject text into the focused element for the approved `inject`. |
 | `storage` | Store the approval count and bridge status locally. |
-| `notifications` | Show the approval notification with ✅/🚫 buttons. |
-| `alarms` | Keep the service worker alive so the extension stays connected to the bridge. |
-| `host_permissions: <all_urls>` | Agents act without a user gesture, so the extension must be able to reach any page the user has open. The approval gate is the control that makes this safe. |
+| `notifications` | Show the approval notification with Approve/Deny buttons. |
+| `alarms` | Keep the service worker alive so the extension stays connected. |
+| `host_permissions: <all_urls>` | Agents act without a user gesture, so the extension must reach any page the user has open. The approval gate is the control that makes this safe. |
 
 ## Privacy
 
-- **Data stays local.** The bridge binds to `127.0.0.1` (loopback only). There are no
-  remote servers involved — no cloud, no accounts.
-- **No telemetry, no data collection.** The extension sends nothing anywhere.
-- **What it touches:** tab titles/URLs, clipboard text, and injected text — all of it
-  is processed on your own machine only.
-- **Approval count** is stored in local browser storage (`chrome.storage.local`),
-  on your device only.
-
-## Privacy policy URL — DONE ✅
-
-Privacy policy is live at:
-**https://rudibrdev.github.io/agentbridge/privacy.html**
-
-Add this URL in the store listing's "Privacy policy" field at submission time.
-
-## Security (v0.2.0 — auth added)
-
-- **Shared-secret token auth.** Every connection (agent AND extension) must present
-  the bridge token in its `hello`; the server rejects and closes otherwise.
-  The extension stores the token locally; agents pass it via env/arg.
-- **Origin allowlist.** Web pages cannot complete the WebSocket handshake — only
-  local processes (no Origin) or the extension itself (`chrome-extension://`).
-- **Requester identity.** The approval prompt shows which agent is asking.
-- **Size caps + redacted logs.** 1 MB frame cap, 256 KB `params.text` cap, and the
-  extension never logs clipboard/body content.
+- Data stays local: bridge binds to `127.0.0.1` (loopback only). No cloud, no accounts.
+- No telemetry, no data collection.
+- Touches tab titles/URLs, clipboard text, and injected text — all processed on your machine only.
+- Approval count stored in local browser storage, on your device only.

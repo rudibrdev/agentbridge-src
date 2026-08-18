@@ -1,0 +1,18 @@
+# AgentBridge
+
+> Local bridge so AI agents can read your active tab and clipboard and inject text into a page, with your explicit approval on every action. Zero-dependency Node WebSocket server + Chrome MV3 extension.
+
+## Core docs
+
+- [README.md](README.md) — what it is, install, protocol, actions, security model, development.
+- [PROTOCOL.md](PROTOCOL.md) — the wire protocol agents speak (hello / action / result / status).
+- [CONTRIBUTING.md](CONTRIBUTING.md) — ground rules and how to contribute.
+- [SECURITY.md](SECURITY.md) — security model and how to report vulnerabilities.
+- [STORE-LISTING.md](STORE-LISTING.md) — Chrome Web Store listing copy.
+
+## Quick facts
+
+- Bridge: `ws://127.0.0.1:8788`, loopback only.
+- Actions v1: `readTab`, `readClipboard`, `writeClipboard`, `inject` — every action needs human approval.
+- Token auth on every `hello`; web-page origins blocked at handshake.
+- Tests: `node test/server-self-test.mjs`, `STRICT=1 node test/stress-test.mjs`, E2E via real Chrome.
