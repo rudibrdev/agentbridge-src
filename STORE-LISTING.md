@@ -7,8 +7,7 @@
 ## Link fields
 
 - **Website:** `https://yardwork.dev`
-- **Privacy policy:** `https://yardwork.dev/agentbridge/privacy.html`
-  (Fallback: `https://rudibrdev.github.io/agentbridge/privacy.html`)
+- **Privacy policy:** `https://yardwork.dev/agentbridge/privacy.html` (live)
 
 ## Name
 
